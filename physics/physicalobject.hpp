@@ -11,7 +11,7 @@
 #include "icollisionnable.h"
 #include "isimulatable.h"
 
-class PhysicalObject : public Object, public ISimulatable, public ICollisionnable
+class PhysicalObject : public ISimulatable, public ICollisionnable
 {
 
 public:

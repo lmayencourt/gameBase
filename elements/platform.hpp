@@ -11,12 +11,10 @@ private:
     int _height;
 
 public:
-    Platform() {
-        Platform(0,0,50,10);
+    Platform() : Platform(0,0,50,10) {
     }
 
-    Platform(int x, int y) {
-        Platform(x,y,50,10);
+    Platform(int x, int y) : Platform(x,y,50,10) {
     }
 
     Platform(int x, int y, int width, int height) {

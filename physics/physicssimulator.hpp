@@ -38,7 +38,7 @@ public :
 //        this->background = background;
 //    }
 
-    void removeAllObjectsFromSim() {
+    void removeAllSimObjectsFromSim() {
         _sim_objects.clear();
     }
 
@@ -47,16 +47,37 @@ public :
      *
      * @param o  The object to be added
      */
-    void addObjectToSim(PhysicalObject* o) {
+    void addSimObjectToSim(PhysicalObject* o) {
         _sim_objects.push_back(o);
     }
 
     /**
      * remove an object from simulation
      */
-    void removeObjectFromSim(PhysicalObject* o) {
+    void removeSimObjectFromSim(PhysicalObject* o) {
         o->removedFromSim();
         _sim_objects.remove(o);
+    }
+
+    void removeAllColObjectsFromSim() {
+        _col_objects.clear();
+    }
+
+    /**
+     * Adds a new object to the simulation framework
+     *
+     * @param o  The object to be added
+     */
+    void addColObjectToSim(ICollisionnable* o) {
+        _col_objects.push_back(o);
+    }
+
+    /**
+     * remove an object from simulation
+     */
+    void removeColObjectFromSim(ICollisionnable* o) {
+        o->removedFromSim();
+        _col_objects.remove(o);
     }
 
     /**
@@ -68,7 +89,7 @@ public :
         if (_sim_objects.size() == 0)
             return;
 
-        for (std::list<ISimulatable*>::iterator it = _sim_objects.begin(); it != _sim_objects.end(); it++) {
+        for (std::list<PhysicalObject*>::iterator it = _sim_objects.begin(); it != _sim_objects.end(); it++) {
 //            Simulatable* s = *it;
 
 //            s->step();
@@ -151,41 +172,85 @@ private:
     /**
      * The objects that require physics simulation (objects that move)
      */
-    std::list<ISimulatable*> _sim_objects;
+    std::list<PhysicalObject*> _sim_objects;
+    std::list<ICollisionnable*> _col_objects;
 
     void handleCollisions(PhysicalObject* p)
     {
 
-        // For each object, find potential obstacles among other
-        // objects
-        for (std::list<ISimulatable*>::iterator it = _sim_objects.begin(); it != _sim_objects.end(); it++) {
-//            Simulatable aSimObj = *it;
+        // For each object, find potential obstacles among other objects
+        for (std::list<PhysicalObject*>::iterator it = _sim_objects.begin(); it != _sim_objects.end(); it++) {
             PhysicalObject* q = (PhysicalObject*)(*it);
-//            PhysicalObject q = aSimObj instanceof PhysicalObject ? (PhysicalObject) aSimObj : null;
-
-//            if (p != std::nullptr_t && q != std::nullptr_t && p != q && collides(p, q)) {
             if (p != q && collides(p,q)){
                 // Remove interpenetration
                 p->getPosition()->_x -= Constants::DELTA_TIME * p->getSpeed()->_x;
                 p->getPosition()->_y -= Constants::DELTA_TIME * p->getSpeed()->_y;
 
-                // Formula of elastic collision
-                float m1 = p->getMass();
-                float m2 = q->getMass();
-                float v1x = p->getSpeed()->_x;
-                float v1y = p->getSpeed()->_y;
-                float v2x = q->getSpeed()->_x;
-                float v2y = q->getSpeed()->_y;
+                // 2d elastic collision
+                collision2D(p, q);
 
-                p->getSpeed()->_x = (v1x * (m1 - m2) / (m1 + m2))
-                        + (2 * m2 * v2x / (m1 + m2));
-                p->getSpeed()->_y = (v1y * (m1 - m2) / (m1 + m2))
-                        + (2 * m2 * v2y / (m1 + m2));
+                // Impact total kinetic energy
+                int energy;
+                energy = (int) (0.5 * p->getMass() * p->getSpeed()->norm() * p->getSpeed()->norm());
+                energy += (int) (0.5 * q->getMass()* q->getSpeed()->norm() * q->getSpeed()->norm());
 
-                q->getSpeed()->_x = (2 * m1 * v1x / (m1 + m2))
-                        + (v2x * (m2 - m1) / (m1 + m2));
-                q->getSpeed()->_y = (2 * m1 * v1y / (m1 + m2))
-                        + (v2y * (m2 - m1) / (m1 + m2));
+                // Notify the objects of the impact and destroy them if needed
+                if (p->notifyCollision(energy,q)) {
+                    //removeObjectFromSim(p);
+                }
+
+                if (q->notifyCollision(energy,p)) {
+                    //removeObjectFromSim(q);
+                }
+            }
+        }
+
+        // For each object, find potential obstacles among level
+        for (std::list<ICollisionnable*>::iterator it = _col_objects.begin(); it != _col_objects.end(); it++) {
+            PhysicalObject* q = (PhysicalObject*)(*it);
+            if (p != q && collides(p,q)){
+                // Remove interpenetration
+                p->getPosition()->_x -= Constants::DELTA_TIME * p->getSpeed()->_x;
+                p->getPosition()->_y -= Constants::DELTA_TIME * p->getSpeed()->_y;
+
+                // 2d elastic collision
+                // Damping factor
+                p->_s->_x = -1 * p->_s->_x* Constants::DAMPING_FACTOR;
+                p->_s->_y = -1 * p->_s->_y* Constants::DAMPING_FACTOR;
+
+                // Impact total kinetic energy
+                int energy;
+                energy = (int) (0.5 * p->getMass() * p->getSpeed()->norm() * p->getSpeed()->norm());
+
+                // Notify the objects of the impact and destroy them if needed
+                if (p->notifyCollision(energy,q)) {
+                    //removeObjectFromSim(p);
+                }
+
+                if (q->notifyCollision(energy,p)) {
+                    //removeObjectFromSim(q);
+                }
+            }
+        }
+    }
+
+    void collision2D(PhysicalObject* p, PhysicalObject* q) {
+        float m1 = p->getMass();
+        float m2 = q->getMass();
+        float v1x = p->getSpeed()->_x;
+        float v1y = p->getSpeed()->_y;
+        float v2x = q->getSpeed()->_x;
+        float v2y = q->getSpeed()->_y;
+
+        p->getSpeed()->_x = (v1x * (m1 - m2) / (m1 + m2))
+                + (2 * m2 * v2x / (m1 + m2));
+        p->getSpeed()->_y = (v1y * (m1 - m2) / (m1 + m2))
+                + (2 * m2 * v2y / (m1 + m2));
+
+        q->getSpeed()->_x = (2 * m1 * v1x / (m1 + m2))
+                + (v2x * (m2 - m1) / (m1 + m2));
+        q->getSpeed()->_y = (2 * m1 * v1y / (m1 + m2))
+                + (v2y * (m2 - m1) / (m1 + m2));
 
 //                float phi1, phi2, r1, r2;
 //                float v1 = p->getSpeed()->norm();
@@ -203,82 +268,16 @@ private:
 //                r2 = sqrt(pow(2, (m2 - m1)/(m2 + m1) * v2 * sin(psi2) + 2*m1/(m2 + m1) * v1 * sin(psi1))
 //                           + pow(2, v2 * cos(psi2)));
 
-//                collision2Ds(m1,m2,1,)
-
 //                p->getSpeed()->set(r1,phi1);
 //                q->getSpeed()->set(r2,phi2);
 
-                // Damping factor
-                p->_s->_x = p->_s->_x* Constants::DAMPING_FACTOR;
-                p->_s->_y = p->_s->_y* Constants::DAMPING_FACTOR;
+        // Damping factor
+        p->_s->_x = p->_s->_x* Constants::DAMPING_FACTOR;
+        p->_s->_y = p->_s->_y* Constants::DAMPING_FACTOR;
 
-                q->_s->_x = q->_s->_x* Constants::DAMPING_FACTOR;
-                q->_s->_y = q->_s->_y* Constants::DAMPING_FACTOR;
+        q->_s->_x = q->_s->_x* Constants::DAMPING_FACTOR;
+        q->_s->_y = q->_s->_y* Constants::DAMPING_FACTOR;
 
-                // Impact total kinetic energy
-                int energy;
-                energy = (int) (0.5 * q->getMass() * q->getSpeed()->norm() * q->getSpeed()->norm());
-                energy += (int) (0.5 * q->getMass()* q->getSpeed()->norm() * q->getSpeed()->norm());
-
-                // Notify the objects of the impact and destroy them if needed
-                if (p->notifyCollision(energy,q)) {
-                    //removeObjectFromSim(p);
-                }
-
-                if (q->notifyCollision(energy,p)) {
-                    //removeObjectFromSim(q);
-                }
-            }
-
-        }
-    }
-
-    void collision2Ds(double m1, double m2, double R,
-                     double x1, double y1, double x2, double y2,
-                     double& vx1, double& vy1, double& vx2, double& vy2)     {
-
-           double  m21,dvx2,a,x21,y21,vx21,vy21,fy21,sign,vx_cm,vy_cm;
-
-
-           m21=m2/m1;
-           x21=x2-x1;
-           y21=y2-y1;
-           vx21=vx2-vx1;
-           vy21=vy2-vy1;
-
-           vx_cm = (m1*vx1+m2*vx2)/(m1+m2) ;
-           vy_cm = (m1*vy1+m2*vy2)/(m1+m2) ;
-
-
-    //     *** return old velocities if balls are not approaching ***
-           if ( (vx21*x21 + vy21*y21) >= 0) return;
-
-
-    //     *** I have inserted the following statements to avoid a zero divide;
-    //         (for single precision calculations,
-    //          1.0E-12 should be replaced by a larger value). **************
-
-           fy21=1.0E-12*fabs(y21);
-           if ( fabs(x21)<fy21 ) {
-                       if (x21<0) { sign=-1; } else { sign=1;}
-                       x21=fy21*sign;
-            }
-
-    //     ***  update velocities ***
-           a=y21/x21;
-           dvx2= -2*(vx21 +a*vy21)/((1+a*a)*(1+m21)) ;
-           vx2=vx2+dvx2;
-           vy2=vy2+a*dvx2;
-           vx1=vx1-m21*dvx2;
-           vy1=vy1-a*m21*dvx2;
-
-    //     ***  velocity correction for inelastic collisions ***
-           vx1=(vx1-vx_cm)*R + vx_cm;
-           vy1=(vy1-vy_cm)*R + vy_cm;
-           vx2=(vx2-vx_cm)*R + vx_cm;
-           vy2=(vy2-vy_cm)*R + vy_cm;
-
-           return;
     }
 
     /**

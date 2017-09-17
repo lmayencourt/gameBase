@@ -4,7 +4,7 @@
 #include "gameBase/common/object.hpp"
 #include "rectangle.hpp"
 
-class ICollisionnable
+class ICollisionnable : virtual public Object
 {
 public:
     /**

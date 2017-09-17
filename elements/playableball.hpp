@@ -17,10 +17,9 @@ public:
         _radius = radius;
     }
 
-    PlayableBall(int x, int y) {
+    PlayableBall(int x, int y) : PlayableBall() {
         _p->_x = x;
         _p->_y = y;
-        PlayableBall();
     }
 
     PlayableBall(int x, int y, int radius) {
